@@ -216,6 +216,31 @@ resource "azurerm_windows_virtual_machine" "terraform_vm" {
 }
 
 
+resource "azurerm_managed_disk" "appdisk" {
+  name                 = "appdisk"
+  location             = local.location
+  resource_group_name  = azurerm_resource_group.resourcegroup.name
+  storage_account_type = "Standard_LRS"
+  create_option        = "Empty"
+  disk_size_gb         = "16"
+
+  tags = {
+    environment = "Production"
+  }
+}
+
+
+resource "azurerm_virtual_machine_data_disk_attachment" "appdiskattachment" {
+  managed_disk_id    = azurerm_managed_disk.appdisk.id
+  virtual_machine_id = azurerm_windows_virtual_machine.terraform_vm.id
+  lun                = "10"
+  caching            = "ReadWrite"
+  depends_on = [
+    azurerm_windows_virtual_machine.terraform_vm
+  ]
+}
+
+
 
 output "subnet1-id" {
   value = azurerm_virtual_network.terravnet.subnet.*.id[0]

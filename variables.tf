@@ -1,4 +1,4 @@
-variable "client_secret" {
+/* variable "client_secret" {
   type = string
   sensitive = true
 }
@@ -13,4 +13,4 @@ variable "tenant" {
 
 variable "client_id" {
   type = string
-}
+} */
