@@ -36,6 +36,23 @@ locals {
     }]
   }
   nic = "terra_nic"
+  public_ip = "terra_publicip"
+  nsg = {
+    name = "terra_nsg"
+    security_rule=[
+      {
+        name = "AllowRDP"
+        priority = 100
+        direction = "Inbound"
+        access = "Allow"
+        protocol = "Tcp"
+        source_port_range = "*"
+        destination_port_range = "3389"
+        source_address_prefix = "*"
+        destination_address_prefix = "*"
+      }
+    ]
+  }
 }
 
 
@@ -129,12 +146,95 @@ resource "azurerm_network_interface" "terra_nic" {
     name                          = "internal"
     subnet_id                     = azurerm_virtual_network.terravnet.subnet.*.id[0]
     private_ip_address_allocation = "Dynamic"
+    public_ip_address_id = azurerm_public_ip.terra_publicip.id
   }
 
   depends_on = [
+    azurerm_virtual_network.terravnet,
+    azurerm_public_ip.terra_publicip
+  ]
+}
+
+
+resource "azurerm_public_ip" "terra_publicip" {
+  name                = local.public_ip
+  resource_group_name = azurerm_resource_group.resourcegroup.name
+  location            = local.location
+  allocation_method   = "Static"
+
+  tags = {
+    environment = "Production"
+  }
+  depends_on = [
+    azurerm_resource_group.resourcegroup,
     azurerm_virtual_network.terravnet
   ]
 }
+
+resource "azurerm_network_security_group" "terra_nsg" {
+  name                = local.nsg.name
+  location            = local.location
+  resource_group_name = azurerm_resource_group.resourcegroup.name
+  dynamic "security_rule" {
+    for_each = local.nsg.security_rule
+    content {
+      name = security_rule.value["name"]
+      priority = security_rule.value["priority"]
+      direction = security_rule.value["direction"]
+      access = security_rule.value["access"]
+      protocol = security_rule.value["protocol"]
+      source_port_range = security_rule.value["source_port_range"]
+      destination_port_range = security_rule.value["destination_port_range"]
+      source_address_prefix = security_rule.value["source_address_prefix"]
+      destination_address_prefix = security_rule.value["destination_address_prefix"]
+    }
+    
+  }
+
+  tags = {
+    environment = "Production"
+  }
+
+  depends_on = [
+    azurerm_resource_group.resourcegroup
+  ]
+}
+
+resource "azurerm_subnet_network_security_group_association" "nsg_association" {
+  subnet_id                 = azurerm_virtual_network.terravnet.subnet.*.id[0]
+  network_security_group_id = azurerm_network_security_group.terra_nsg.id
+}
+
+resource "azurerm_network_interface_security_group_association" "nsg_nic_association" {
+  network_interface_id = azurerm_network_interface.terra_nic.id
+  network_security_group_id = azurerm_network_security_group.terra_nsg.id
+}
+
+
+resource "azurerm_windows_virtual_machine" "terraform_vm" {
+  name                = "terra-vm"
+  resource_group_name = azurerm_resource_group.resourcegroup.name
+  location            = local.location
+  size                = "Standard_F2"
+  admin_username      = "adminuser"
+  admin_password      = "Abcd1234$"
+  network_interface_ids = [
+    azurerm_network_interface.terra_nic.id
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "MicrosoftWindowsServer"
+    offer     = "WindowsServer"
+    sku       = "2019-Datacenter"
+    version   = "latest"
+  }
+}
+
 
 
 output "subnet1-id" {
