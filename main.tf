@@ -135,3 +135,8 @@ resource "azurerm_network_interface" "terra_nic" {
     azurerm_virtual_network.terravnet
   ]
 }
+
+
+output "subnet1-id" {
+  value = azurerm_virtual_network.terravnet.subnet.*.id[0]
+}
